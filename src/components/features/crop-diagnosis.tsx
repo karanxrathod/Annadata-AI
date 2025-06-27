@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { diagnoseCropDisease, type DiagnoseCropDiseaseOutput } from '@/ai/flows/diagnose-crop-disease';
-import { AlertCircle, CheckCircle, Upload, Bot, Camera as CameraIcon } from 'lucide-react';
+import { AlertCircle, CheckCircle, Upload, Bot, Camera as CameraIcon, SwitchCamera } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,8 +20,13 @@ export function CropDiagnosis() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [language, setLanguage] = useState('English');
+  
+  // Camera specific state
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [isCameraReady, setIsCameraReady] = useState(false);
+  const [isCameraTabActive, setIsCameraTabActive] = useState(false);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+
   const { toast } = useToast();
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -39,55 +44,65 @@ export function CropDiagnosis() {
     setIsCameraReady(false);
   }, []);
 
-  const startCamera = useCallback(async () => {
-    if (streamRef.current) return;
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setHasCameraPermission(false);
-      toast({
-        variant: 'destructive',
-        title: 'Camera Not Supported',
-        description: 'Your browser does not support camera access.',
-      });
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      streamRef.current = stream;
-      setHasCameraPermission(true);
+  useEffect(() => {
+    // This effect manages the camera lifecycle based on tab activity and facing mode
+    if (isCameraTabActive) {
+      const startCamera = async () => {
+        // Stop any existing stream before starting a new one
+        if (streamRef.current) {
+          stopCamera();
+        }
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          setIsCameraReady(true);
-        };
-      }
-    } catch (err) {
-      console.error('Error accessing camera:', err);
-      setHasCameraPermission(false);
-      setIsCameraReady(false);
-      toast({
-        variant: 'destructive',
-        title: 'Camera Access Denied',
-        description: 'Please enable camera permissions in your browser settings.',
-      });
-    }
-  }, [toast]);
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setHasCameraPermission(false);
+          toast({ variant: 'destructive', title: 'Camera Not Supported', description: 'Your browser does not support camera access.' });
+          return;
+        }
 
-  const handleTabChange = useCallback((value: string) => {
-    if (value === 'camera') {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode } });
+          streamRef.current = stream;
+          setHasCameraPermission(true);
+
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            videoRef.current.onloadedmetadata = () => setIsCameraReady(true);
+          }
+        } catch (err) {
+          console.error('Error accessing camera:', err);
+          setHasCameraPermission(false);
+          setIsCameraReady(false);
+          toast({
+            variant: 'destructive',
+            title: 'Camera Access Denied',
+            description: 'Could not start camera. It might be in use or permissions are denied.',
+          });
+        }
+      };
+      
       startCamera();
+
     } else {
       stopCamera();
     }
-  }, [startCamera, stopCamera]);
-
-  useEffect(() => {
-    // Cleanup function to stop video stream when component unmounts
+    
+    // Cleanup function when the component unmounts
     return () => {
       stopCamera();
     };
-  }, [stopCamera]);
 
+  }, [isCameraTabActive, facingMode, stopCamera, toast]);
+
+
+  const handleTabChange = (value: string) => {
+    setIsCameraTabActive(value === 'camera');
+  };
+  
+  const handleSwitchCamera = () => {
+    if (!isCameraReady) return;
+    setIsCameraReady(false); // Set to not ready while switching
+    setFacingMode(prevMode => (prevMode === 'user' ? 'environment' : 'user'));
+  };
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -146,7 +161,10 @@ export function CropDiagnosis() {
     setError(null);
 
     try {
-      stopCamera();
+      // Stop the camera so the user can focus on the results
+      if (isCameraTabActive) {
+        stopCamera();
+      }
       const response = await diagnoseCropDisease({ photoDataUri: imagePreview, language });
       setResult(response);
     } catch (e) {
@@ -195,10 +213,16 @@ export function CropDiagnosis() {
                   }
                 </div>
                 <canvas ref={canvasRef} className="hidden" />
-                <Button type="button" onClick={handleTakePhoto} disabled={isLoading || !isCameraReady}>
-                  <CameraIcon className="w-4 h-4 mr-2" /> 
-                  {isCameraReady ? 'Capture Photo' : 'Getting Camera Ready...'}
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button type="button" onClick={handleTakePhoto} disabled={isLoading || !isCameraReady} className="flex-1">
+                    <CameraIcon className="w-4 h-4 mr-2" /> 
+                    {isCameraReady ? 'Capture Photo' : 'Getting Camera Ready...'}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={handleSwitchCamera} disabled={isLoading || !isCameraReady}>
+                    <SwitchCamera className="w-4 h-4 mr-2" />
+                    Switch Camera
+                  </Button>
+                </div>
               </div>
             </TabsContent>
           </Tabs>
