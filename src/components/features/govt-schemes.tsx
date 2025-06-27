@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -12,7 +12,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { navigateGovernmentSchemes, type NavigateGovernmentSchemesOutput } from '@/ai/flows/navigate-government-schemes';
-import { AlertCircle, Bot, Send, ExternalLink } from 'lucide-react';
+import { AlertCircle, Bot, Send, ExternalLink, Mic } from 'lucide-react';
+import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
   userNeed: z.string().min(10, { message: 'Please describe your need in at least 10 characters.' }),
@@ -22,6 +23,10 @@ export function GovtSchemes() {
   const [result, setResult] = useState<NavigateGovernmentSchemesOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const { toast } = useToast();
+
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -29,6 +34,62 @@ export function GovtSchemes() {
       userNeed: '',
     },
   });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      return; // Speech recognition not supported
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-IN';
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      form.setValue('userNeed', transcript, { shouldValidate: true });
+    };
+
+    recognition.onerror = (event) => {
+      console.error('Speech recognition error', event.error);
+      toast({
+        variant: "destructive",
+        title: "Speech Recognition Error",
+        description: `An error occurred: ${event.error}`,
+      });
+    };
+    
+    recognition.onend = () => {
+      setIsRecording(false);
+    };
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      recognitionRef.current?.stop();
+    };
+  }, [form, toast]);
+
+  const handleMicClick = () => {
+    if (!recognitionRef.current) {
+      toast({
+        variant: "destructive",
+        title: "Unsupported Browser",
+        description: "Speech recognition is not available in your browser.",
+      });
+      return;
+    }
+    
+    if (isRecording) {
+      recognitionRef.current.stop();
+    } else {
+      setIsRecording(true);
+      recognitionRef.current.start();
+    }
+  };
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
@@ -61,7 +122,24 @@ export function GovtSchemes() {
                 <FormItem>
                   <FormLabel>Describe Your Need</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="e.g., I need a loan for buying a new tractor." {...field} rows={4} />
+                    <div className="relative">
+                       <Textarea
+                        placeholder="Click the mic to speak, or type your need..."
+                        {...field}
+                        rows={4}
+                        className="pr-12"
+                      />
+                       <Button
+                        type="button"
+                        size="icon"
+                        variant={isRecording ? 'destructive' : 'outline'}
+                        onClick={handleMicClick}
+                        className="absolute right-3 top-3"
+                      >
+                        <Mic className="h-4 w-4" />
+                        <span className="sr-only">{isRecording ? 'Stop recording' : 'Start recording'}</span>
+                      </Button>
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
