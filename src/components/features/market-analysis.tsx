@@ -13,11 +13,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { analyzeMarket, type AnalyzeMarketOutput } from '@/ai/flows/real-time-market-analysis';
-import { AlertCircle, Bot, Send, TrendingUp, CircleDollarSign } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { AlertCircle, Bot, Send, ArrowUp, ArrowDown, MapPin, RefreshCw } from 'lucide-react';
 
 const formSchema = z.object({
   crop: z.string().min(2, { message: 'Crop name must be at least 2 characters.' }),
+  location: z.string().min(3, { message: 'Location must be at least 3 characters.' }),
   language: z.string().nonempty({ message: 'Please select a language.' }),
 });
 
@@ -29,7 +29,8 @@ export function MarketAnalysis() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      crop: '',
+      crop: 'Soybean',
+      location: 'Nashik',
       language: 'English',
     },
   });
@@ -49,6 +50,19 @@ export function MarketAnalysis() {
     }
   }
 
+  const PriceChangeIndicator = ({ priceChange }: { priceChange: number }) => {
+    if (priceChange === 0) {
+      return <span className="ml-2 text-muted-foreground font-semibold">(No Change)</span>;
+    }
+    const isPositive = priceChange > 0;
+    const absChange = Math.abs(priceChange);
+    return (
+      <span className={`ml-2 font-semibold flex items-center ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+        ({isPositive ? '↑' : '↓'} ₹{absChange})
+      </span>
+    );
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -58,25 +72,40 @@ export function MarketAnalysis() {
       <CardContent className="grid gap-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <FormField
-              control={form.control}
-              name="crop"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Crop Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Tomatoes" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="crop"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Crop Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Soybean" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="location"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Market Location (Mandi)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Nashik" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <FormField
               control={form.control}
               name="language"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Language</FormLabel>
+                  <FormLabel>Language for Analysis</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
@@ -119,40 +148,34 @@ export function MarketAnalysis() {
 
         {result && (
           <Card className="bg-secondary/50">
-            <CardHeader className="flex-row items-start gap-4 space-y-0">
-                <div className="bg-primary text-primary-foreground p-3 rounded-full">
-                    <Bot className="h-6 w-6" />
-                </div>
-                <div className="flex-1">
-                    <CardTitle>Market Analysis Report</CardTitle>
-                    <CardDescription>For {form.getValues('crop')} in {form.getValues('language')}</CardDescription>
+            <CardHeader>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <CardTitle className="flex items-center">🌾 {form.getValues('crop')} Market Trends</CardTitle>
+                        <CardDescription>Last 24 Hours Analysis</CardDescription>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={form.handleSubmit(onSubmit)} disabled={isLoading}>
+                        <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                        Refresh
+                    </Button>
                 </div>
             </CardHeader>
             <CardContent className="grid gap-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
-                <Card className="p-4">
-                  <CardHeader className="p-2">
-                    <CircleDollarSign className="w-8 h-8 mx-auto text-accent"/>
-                    <CardTitle className="text-lg mt-2">Current Price</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-2">
-                    <p className="text-3xl font-bold text-primary">₹{result.marketAnalysis.price} / kg</p>
-                  </CardContent>
-                </Card>
-                <Card className="p-4">
-                  <CardHeader className="p-2">
-                    <TrendingUp className="w-8 h-8 mx-auto text-accent"/>
-                    <CardTitle className="text-lg mt-2">Market Trend</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-2">
-                    <Badge variant="default" className="text-lg capitalize">{result.marketAnalysis.trend}</Badge>
-                  </CardContent>
-                </Card>
-              </div>
-              <div>
-                <h3 className="font-semibold text-lg mb-2">Summary & Advice</h3>
-                <p className="text-muted-foreground bg-background/50 p-4 rounded-md">{result.marketAnalysis.summary}</p>
-              </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                    <div className="flex items-center text-lg">
+                        <span className="text-2xl mr-2">📈</span>
+                        <span className="font-semibold text-primary">Price: ₹{result.marketAnalysis.price}/{result.marketAnalysis.unit}</span>
+                        <PriceChangeIndicator priceChange={result.marketAnalysis.priceChange} />
+                    </div>
+                    <div className="flex items-center text-lg">
+                        <span className="text-2xl mr-2">📍</span>
+                        <span className="font-semibold text-primary">{result.marketAnalysis.location}</span>
+                    </div>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg mb-2 flex items-center"><span className="text-2xl mr-2">🧠</span> AI Insights & Advice <span className="text-sm text-muted-foreground ml-2">({form.getValues('language')})</span></h3>
+                  <p className="text-muted-foreground bg-background/50 p-4 rounded-md border">{result.marketAnalysis.summary}</p>
+                </div>
             </CardContent>
           </Card>
         )}
@@ -162,10 +185,14 @@ export function MarketAnalysis() {
 }
 
 const LoadingSkeleton = () => (
-    <div className="space-y-4">
+    <div className="space-y-4 pt-4">
+      <div className="flex justify-between items-center">
+        <Skeleton className="h-8 w-1/2" />
+        <Skeleton className="h-8 w-24" />
+      </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
         </div>
         <Skeleton className="h-10 w-1/4" />
         <Skeleton className="h-24 w-full" />
