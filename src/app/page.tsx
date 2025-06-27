@@ -1,6 +1,7 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Header } from "@/components/layout/header";
+import { Footer } from "@/components/layout/footer";
 import { CropDiagnosis } from "@/components/features/crop-diagnosis";
 import { MarketAnalysis } from "@/components/features/market-analysis";
 import { GovtSchemes } from "@/components/features/govt-schemes";
@@ -37,9 +38,7 @@ export default function Home() {
           </TabsContent>
         </Tabs>
       </main>
-      <footer className="text-center p-4 text-sm text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} Annadata AI. Empowering Farmers with Technology.</p>
-      </footer>
+      <Footer />
     </div>
   );
 }
