@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,9 +9,10 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { diagnoseCropDisease, type DiagnoseCropDiseaseOutput } from '@/ai/flows/diagnose-crop-disease';
-import { AlertCircle, CheckCircle, Upload, FileImage, Bot } from 'lucide-react';
-import { useToast } from "@/hooks/use-toast"
+import { AlertCircle, CheckCircle, Upload, Bot, Camera as CameraIcon } from 'lucide-react';
+import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export function CropDiagnosis() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -20,7 +20,47 @@ export function CropDiagnosis() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [language, setLanguage] = useState('English');
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const { toast } = useToast();
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const getCameraPermission = async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setHasCameraPermission(false);
+        console.warn("Camera API not supported by this browser.");
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        setHasCameraPermission(true);
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (err) {
+        console.error('Error accessing camera:', err);
+        setHasCameraPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'Camera Access Denied',
+          description: 'Please enable camera permissions in your browser settings to use this app.',
+        });
+      }
+    };
+
+    getCameraPermission();
+    
+    // Cleanup function to stop video stream when component unmounts
+    return () => {
+      if (videoRef.current?.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach((track) => track.stop());
+      }
+    }
+  }, [toast]);
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -35,13 +75,32 @@ export function CropDiagnosis() {
     }
   };
 
+  const handleTakePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const context = canvas.getContext('2d');
+    if (context) {
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUri = canvas.toDataURL('image/jpeg');
+      setImagePreview(dataUri);
+      setResult(null);
+      setError(null);
+    }
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!imagePreview) {
       toast({
         variant: "destructive",
         title: "No Image Selected",
-        description: "Please select an image of the plant to diagnose.",
+        description: "Please upload or take a photo of the plant to diagnose.",
       });
       return;
     }
@@ -65,29 +124,54 @@ export function CropDiagnosis() {
     <Card className="w-full">
       <CardHeader>
         <CardTitle>Crop Disease Diagnosis</CardTitle>
-        <CardDescription>Upload a photo of a diseased plant, and our AI will identify the issue and suggest remedies.</CardDescription>
+        <CardDescription>Upload a photo or use your camera, and our AI will identify the issue and suggest remedies.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-6">
         <form onSubmit={handleSubmit} className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="plant-image">Plant Image</Label>
-            <div className="flex items-center gap-4">
-                <Input id="plant-image" type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
-                <Label htmlFor="plant-image" className="flex-grow">
-                    <div className="cursor-pointer flex items-center justify-center w-full p-4 border-2 border-dashed rounded-lg hover:bg-muted">
-                        <div className="text-center">
-                            <FileImage className="w-10 h-10 mx-auto text-muted-foreground" />
-                            <p className="mt-2 text-sm text-muted-foreground">Click to upload or drag and drop</p>
-                        </div>
+
+          <Tabs defaultValue="upload" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="upload">
+                <Upload className="w-4 h-4 mr-2" />
+                Upload Photo
+              </TabsTrigger>
+              <TabsTrigger value="camera" disabled={hasCameraPermission === false}>
+                <CameraIcon className="w-4 h-4 mr-2" />
+                Use Camera
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="upload" className="pt-4">
+              <Label htmlFor="plant-image" className="sr-only">Plant Image</Label>
+              <Input id="plant-image" type="file" accept="image/*" onChange={handleImageChange} />
+            </TabsContent>
+            <TabsContent value="camera" className="pt-4">
+              <div className="grid gap-4">
+                <div className="w-full aspect-video rounded-md bg-muted overflow-hidden border">
+                  {hasCameraPermission === null && <div className="flex items-center justify-center h-full text-muted-foreground">Requesting camera access...</div>}
+                  <video ref={videoRef} className={`w-full h-full object-cover ${hasCameraPermission ? 'block' : 'hidden'}`} autoPlay muted playsInline />
+                  {hasCameraPermission === false && 
+                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4 text-center">
+                        <CameraIcon className="w-10 h-10 mb-2"/>
+                        <p className="font-semibold">Camera Not Available</p>
+                        <p className="text-xs">Check your browser settings to grant camera permission.</p>
                     </div>
-                </Label>
-            </div>
-          </div>
+                  }
+                </div>
+                <canvas ref={canvasRef} className="hidden" />
+                <Button type="button" onClick={handleTakePhoto} disabled={isLoading || hasCameraPermission !== true}>
+                  <CameraIcon className="w-4 h-4 mr-2" /> Capture Photo
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
+          
           {imagePreview && (
-            <div className="my-4 flex justify-center">
+            <div className="my-4 flex flex-col items-center gap-4 border-t pt-6">
+              <Label>Image Preview</Label>
               <Image src={imagePreview} alt="Plant preview" width={200} height={200} className="rounded-lg object-cover shadow-lg" data-ai-hint="diseased plant" />
             </div>
           )}
+
            <div className="grid gap-2">
             <Label htmlFor="language">Language for Diagnosis</Label>
              <Select onValueChange={setLanguage} defaultValue={language}>
@@ -110,7 +194,7 @@ export function CropDiagnosis() {
           </div>
           <Button type="submit" disabled={isLoading || !imagePreview}>
             {isLoading ? 'Analyzing...' : 'Diagnose Disease'}
-            <Upload className="w-4 h-4 ml-2" />
+            <Bot className="w-4 h-4 ml-2" />
           </Button>
         </form>
 
