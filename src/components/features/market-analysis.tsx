@@ -88,6 +88,12 @@ export function MarketAnalysis() {
                       <SelectItem value="Hindi">Hindi (हिन्दी)</SelectItem>
                       <SelectItem value="Marathi">Marathi (मराठी)</SelectItem>
                       <SelectItem value="Tamil">Tamil (தமிழ்)</SelectItem>
+                      <SelectItem value="Bengali">Bengali (বাংলা)</SelectItem>
+                      <SelectItem value="Telugu">Telugu (తెలుగు)</SelectItem>
+                      <SelectItem value="Kannada">Kannada (ಕನ್ನಡ)</SelectItem>
+                      <SelectItem value="Gujarati">Gujarati (ગુજરાતી)</SelectItem>
+                      <SelectItem value="Punjabi">Punjabi (ਪੰਜਾਬੀ)</SelectItem>
+                      <SelectItem value="Malayalam">Malayalam (മലയാളം)</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
