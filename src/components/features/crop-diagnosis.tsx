@@ -12,12 +12,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { diagnoseCropDisease, type DiagnoseCropDiseaseOutput } from '@/ai/flows/diagnose-crop-disease';
 import { AlertCircle, CheckCircle, Upload, FileImage, Bot } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export function CropDiagnosis() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [result, setResult] = useState<DiagnoseCropDiseaseOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [language, setLanguage] = useState('English');
   const { toast } = useToast();
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -49,7 +51,7 @@ export function CropDiagnosis() {
     setError(null);
 
     try {
-      const response = await diagnoseCropDisease({ photoDataUri: imagePreview });
+      const response = await diagnoseCropDisease({ photoDataUri: imagePreview, language });
       setResult(response);
     } catch (e) {
       setError('Failed to diagnose crop disease. Please try again.');
@@ -86,6 +88,26 @@ export function CropDiagnosis() {
               <Image src={imagePreview} alt="Plant preview" width={200} height={200} className="rounded-lg object-cover shadow-lg" data-ai-hint="diseased plant" />
             </div>
           )}
+           <div className="grid gap-2">
+            <Label htmlFor="language">Language for Diagnosis</Label>
+             <Select onValueChange={setLanguage} defaultValue={language}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a language" />
+                </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="English">English</SelectItem>
+                <SelectItem value="Hindi">Hindi (हिन्दी)</SelectItem>
+                <SelectItem value="Marathi">Marathi (मराठी)</SelectItem>
+                <SelectItem value="Tamil">Tamil (தமிழ்)</SelectItem>
+                <SelectItem value="Bengali">Bengali (বাংলা)</SelectItem>
+                <SelectItem value="Telugu">Telugu (తెలుగు)</SelectItem>
+                <SelectItem value="Kannada">Kannada (ಕನ್ನಡ)</SelectItem>
+                <SelectItem value="Gujarati">Gujarati (ગુજરાતી)</SelectItem>
+                <SelectItem value="Punjabi">Punjabi (ਪੰਜਾਬੀ)</SelectItem>
+                <SelectItem value="Malayalam">Malayalam (മലയാളം)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Button type="submit" disabled={isLoading || !imagePreview}>
             {isLoading ? 'Analyzing...' : 'Diagnose Disease'}
             <Upload className="w-4 h-4 ml-2" />
@@ -115,6 +137,10 @@ export function CropDiagnosis() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4">
+                 <div>
+                  <h3 className="font-semibold text-lg mb-2">Identified Plant:</h3>
+                  <p className="text-primary font-bold text-xl">{result.plantName}</p>
+                </div>
                 <div>
                   <h3 className="font-semibold text-lg mb-2">Identified Disease:</h3>
                   <p className="text-primary font-bold text-xl">{result.diseaseName}</p>

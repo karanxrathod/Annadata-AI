@@ -19,12 +19,14 @@ const DiagnoseCropDiseaseInputSchema = z.object({
     .describe(
       "A photo of a diseased plant, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
     ),
+  language: z.string().describe('The language for the output response, e.g., "English", "Hindi".'),
 });
 export type DiagnoseCropDiseaseInput = z.infer<typeof DiagnoseCropDiseaseInputSchema>;
 
 const DiagnoseCropDiseaseOutputSchema = z.object({
-  diseaseName: z.string().describe('The identified disease name.'),
-  remedies: z.array(z.string()).describe('A list of actionable remedies for the disease.'),
+  plantName: z.string().describe('The common name of the plant identified in the image, in the specified language.'),
+  diseaseName: z.string().describe('The identified disease name, in the specified language.'),
+  remedies: z.array(z.string()).describe('A list of actionable remedies for the disease, in the specified language.'),
 });
 export type DiagnoseCropDiseaseOutput = z.infer<typeof DiagnoseCropDiseaseOutputSchema>;
 
@@ -36,15 +38,17 @@ const prompt = ai.definePrompt({
   name: 'diagnoseCropDiseasePrompt',
   input: {schema: DiagnoseCropDiseaseInputSchema},
   output: {schema: DiagnoseCropDiseaseOutputSchema},
-  prompt: `You are an expert in plant pathology. Analyze the image of the diseased plant and provide a diagnosis and actionable remedies.
+  prompt: `You are an expert in plant pathology. A user has provided an image of a plant.
+
+  Your tasks are:
+  1. Identify the common name of the plant in the image.
+  2. Diagnose the disease affecting the plant.
+  3. Provide a list of actionable remedies for the disease.
+  4. Respond entirely in the specified language: {{language}}. This includes the plant name, disease name, and all remedies.
 
   Photo: {{media url=photoDataUri}}
-  \n
-  Respond using the following JSON format:
-  {
-    "diseaseName": "disease name",
-    "remedies": ["remedy 1", "remedy 2"]
-  }`,
+  Language: {{language}}
+  `,
 });
 
 const diagnoseCropDiseaseFlow = ai.defineFlow(
