@@ -45,7 +45,7 @@ const MarketDataToolSchema = z.object({
 
 const getMarketData = ai.defineTool({
   name: 'getMarketData',
-  description: 'Fetches real-time market data for a specific crop and location.',
+  description: 'Fetches real-time market data for a specific crop and location. This is the only way to get market data.',
   inputSchema: z.object({
     crop: z.string().describe('The crop to fetch market data for.'),
     location: z.string().describe('The location (mandi) to fetch market data for.'),
@@ -53,7 +53,9 @@ const getMarketData = ai.defineTool({
   outputSchema: MarketDataToolSchema,
 }, async (input) => {
   console.log(`Fetching market data for ${input.crop} in ${input.location}`);
-
+  
+  // This is where you would replace the mock data with a real API call to your backend (e.g., a Firebase Function).
+  // For now, we'll use more realistic mock data.
   const mockMarketData: { [key: string]: { price: number; priceChange: number; trend: string; unit: string; location: string;} } = {
     'tomatoes-nashik': { price: 2500, priceChange: 150, trend: 'increasing', unit: 'quintal', location: 'Nashik Mandi' },
     'wheat-delhi': { price: 2200, priceChange: -50, trend: 'decreasing', unit: 'quintal', location: 'Delhi APMC' },
@@ -70,6 +72,7 @@ const getMarketData = ai.defineTool({
   }
 
   // Fallback for combinations not in the mock data
+  console.log(`No mock data for key: ${cropKey}. Using random data.`);
   const randomPrice = Math.floor(Math.random() * 5000) + 1000;
   const randomPriceChange = Math.floor(Math.random() * 200) - 100;
   const randomTrend = randomPriceChange > 0 ? 'increasing' : randomPriceChange < 0 ? 'decreasing' : 'stable';
@@ -91,13 +94,11 @@ const prompt = ai.definePrompt({
 
   A farmer is asking about the price of {{crop}} in {{location}}. Their preferred language for the response is {{language}}.
 
-  1. First, use the getMarketData tool to get the current market data for the specified crop and location. The prices provided by the tool are in Indian Rupees (INR).
-
-  2. Then, analyze the data you receive from the tool (price, priceChange, trend, unit, location).
-
-  3. Based on your analysis, generate a simple, actionable summary to guide the farmer's selling decisions. This summary MUST be in the farmer's specified language ({{language}}). The summary should mention the price and location and give helpful advice. For example, if the trend is 'increasing', you might advise them to wait a bit before selling.
-
-  4. Finally, populate all the fields in the output schema with the data from the tool and the summary you generated.
+  1. First, you MUST use the getMarketData tool to get the current market data for the specified crop and location. Do not make up data.
+  2. The prices provided by the tool are in Indian Rupees (INR).
+  3. Analyze the data you receive from the tool (price, priceChange, trend, unit, location).
+  4. Based on your analysis, generate a simple, actionable summary to guide the farmer's selling decisions. This summary MUST be in the farmer's specified language ({{language}}). The summary should mention the price and location and give helpful advice. For example, if the trend is 'increasing', you might advise them to wait a bit before selling. If it's decreasing, you might suggest they sell soon if the price is still good.
+  5. Finally, populate all the fields in the output schema with the data from the tool and the summary you generated.
 `,
 });
 
@@ -109,6 +110,9 @@ const analyzeMarketFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await prompt(input);
-    return output!;
+    if (!output) {
+      throw new Error('The AI failed to generate a valid market analysis.');
+    }
+    return output;
   }
 );
