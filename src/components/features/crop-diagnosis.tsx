@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,46 +21,73 @@ export function CropDiagnosis() {
   const [error, setError] = useState<string | null>(null);
   const [language, setLanguage] = useState('English');
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [isCameraReady, setIsCameraReady] = useState(false);
   const { toast } = useToast();
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
-  useEffect(() => {
-    const getCameraPermission = async () => {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setHasCameraPermission(false);
-        console.warn("Camera API not supported by this browser.");
-        return;
-      }
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        setHasCameraPermission(true);
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setIsCameraReady(false);
+  }, []);
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      } catch (err) {
-        console.error('Error accessing camera:', err);
-        setHasCameraPermission(false);
-        toast({
-          variant: 'destructive',
-          title: 'Camera Access Denied',
-          description: 'Please enable camera permissions in your browser settings to use this app.',
-        });
-      }
-    };
+  const startCamera = useCallback(async () => {
+    if (streamRef.current) return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setHasCameraPermission(false);
+      toast({
+        variant: 'destructive',
+        title: 'Camera Not Supported',
+        description: 'Your browser does not support camera access.',
+      });
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      streamRef.current = stream;
+      setHasCameraPermission(true);
 
-    getCameraPermission();
-    
-    // Cleanup function to stop video stream when component unmounts
-    return () => {
-      if (videoRef.current?.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach((track) => track.stop());
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          setIsCameraReady(true);
+        };
       }
+    } catch (err) {
+      console.error('Error accessing camera:', err);
+      setHasCameraPermission(false);
+      setIsCameraReady(false);
+      toast({
+        variant: 'destructive',
+        title: 'Camera Access Denied',
+        description: 'Please enable camera permissions in your browser settings.',
+      });
     }
   }, [toast]);
+
+  const handleTabChange = useCallback((value: string) => {
+    if (value === 'camera') {
+      startCamera();
+    } else {
+      stopCamera();
+    }
+  }, [startCamera, stopCamera]);
+
+  useEffect(() => {
+    // Cleanup function to stop video stream when component unmounts
+    return () => {
+      stopCamera();
+    };
+  }, [stopCamera]);
+
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -76,11 +103,20 @@ export function CropDiagnosis() {
   };
 
   const handleTakePhoto = () => {
-    if (!videoRef.current || !canvasRef.current) return;
+    if (!videoRef.current || !canvasRef.current || !isCameraReady) return;
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
     
+    if(video.videoWidth === 0 || video.videoHeight === 0) {
+        toast({
+            variant: "destructive",
+            title: "Camera Not Ready",
+            description: "Video stream is not available yet. Please wait a moment.",
+        });
+        return;
+    }
+
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
@@ -110,6 +146,7 @@ export function CropDiagnosis() {
     setError(null);
 
     try {
+      stopCamera();
       const response = await diagnoseCropDisease({ photoDataUri: imagePreview, language });
       setResult(response);
     } catch (e) {
@@ -129,13 +166,13 @@ export function CropDiagnosis() {
       <CardContent className="grid gap-6">
         <form onSubmit={handleSubmit} className="grid gap-4">
 
-          <Tabs defaultValue="upload" className="w-full">
+          <Tabs defaultValue="upload" className="w-full" onValueChange={handleTabChange}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="upload">
                 <Upload className="w-4 h-4 mr-2" />
                 Upload Photo
               </TabsTrigger>
-              <TabsTrigger value="camera" disabled={hasCameraPermission === false}>
+              <TabsTrigger value="camera">
                 <CameraIcon className="w-4 h-4 mr-2" />
                 Use Camera
               </TabsTrigger>
@@ -147,7 +184,7 @@ export function CropDiagnosis() {
             <TabsContent value="camera" className="pt-4">
               <div className="grid gap-4">
                 <div className="w-full aspect-video rounded-md bg-muted overflow-hidden border">
-                  {hasCameraPermission === null && <div className="flex items-center justify-center h-full text-muted-foreground">Requesting camera access...</div>}
+                  {hasCameraPermission === null && <div className="flex items-center justify-center h-full text-muted-foreground">Initializing camera...</div>}
                   <video ref={videoRef} className={`w-full h-full object-cover ${hasCameraPermission ? 'block' : 'hidden'}`} autoPlay muted playsInline />
                   {hasCameraPermission === false && 
                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4 text-center">
@@ -158,8 +195,9 @@ export function CropDiagnosis() {
                   }
                 </div>
                 <canvas ref={canvasRef} className="hidden" />
-                <Button type="button" onClick={handleTakePhoto} disabled={isLoading || hasCameraPermission !== true}>
-                  <CameraIcon className="w-4 h-4 mr-2" /> Capture Photo
+                <Button type="button" onClick={handleTakePhoto} disabled={isLoading || !isCameraReady}>
+                  <CameraIcon className="w-4 h-4 mr-2" /> 
+                  {isCameraReady ? 'Capture Photo' : 'Getting Camera Ready...'}
                 </Button>
               </div>
             </TabsContent>
