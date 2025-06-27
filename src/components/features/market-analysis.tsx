@@ -130,7 +130,7 @@ export function MarketAnalysis() {
                     <CardTitle className="text-lg mt-2">Current Price</CardTitle>
                   </CardHeader>
                   <CardContent className="p-2">
-                    <p className="text-3xl font-bold text-primary">{result.marketAnalysis.price} / unit</p>
+                    <p className="text-3xl font-bold text-primary">₹{result.marketAnalysis.price} / kg</p>
                   </CardContent>
                 </Card>
                 <Card className="p-4">

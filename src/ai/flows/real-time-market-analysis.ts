@@ -87,11 +87,11 @@ const prompt = ai.definePrompt({
   tools: [getMarketData],
   prompt: `You are an expert market analyst for farmers.
 
-  A farmer is asking about the price of {{crop}} in their local language, which is {{language}}.
+  A farmer is asking about the price of {{crop}} in their local language, which is {{language}}. The prices provided by the tool are in Indian Rupees (INR) per kg.
 
   First, use the getMarketData tool to get the current market data for the specified crop.
 
-  Then, based on the data you receive from the tool, provide a simple, actionable summary of the market trends to guide the farmer's selling decisions. This summary should be in the farmer's specified language. The summary should be helpful and give advice, for example, if the trend is 'increasing', you might advise them to wait a bit before selling.
+  Then, based on the data you receive from the tool, provide a simple, actionable summary of the market trends to guide the farmer's selling decisions. This summary should be in the farmer's specified language and mention the price in Rupees. The summary should be helpful and give advice, for example, if the trend is 'increasing', you might advise them to wait a bit before selling.
 
   Finally, populate all the fields in the output schema, including the price, trend, and the summary you generated.
 `,
