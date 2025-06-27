@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,65 +33,85 @@ export function CropDiagnosis() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const stopCamera = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    setIsCameraReady(false);
-  }, []);
-
+  // This useEffect handles the entire camera lifecycle.
+  // It starts the camera when the tab becomes active or the facing mode changes.
+  // Its cleanup function ensures the camera is properly stopped.
   useEffect(() => {
-    // This effect manages the camera lifecycle based on tab activity and facing mode
-    if (isCameraTabActive) {
-      const startCamera = async () => {
-        // Stop any existing stream before starting a new one
-        if (streamRef.current) {
-          stopCamera();
-        }
+    // Don't do anything if the camera tab isn't active
+    if (!isCameraTabActive) {
+      return;
+    }
+    
+    let isMounted = true;
+    let stream: MediaStream | null = null;
 
-        if (!navigator.mediaDevices?.getUserMedia) {
-          setHasCameraPermission(false);
-          toast({ variant: 'destructive', title: 'Camera Not Supported', description: 'Your browser does not support camera access.' });
+    const startCamera = async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        if (!isMounted) return;
+        setHasCameraPermission(false);
+        toast({ variant: 'destructive', title: 'Camera Not Supported', description: 'Your browser does not support camera access.' });
+        return;
+      }
+
+      try {
+        // Request the camera stream with the current facing mode
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode } });
+        if (!isMounted) {
+          stream.getTracks().forEach(track => track.stop());
           return;
         }
 
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode } });
-          streamRef.current = stream;
-          setHasCameraPermission(true);
+        streamRef.current = stream; // Keep a ref to the stream for other functions
+        setHasCameraPermission(true);
 
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            videoRef.current.onloadedmetadata = () => setIsCameraReady(true);
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          // Wait for the video to start playing to consider the camera "ready"
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play();
+            if (isMounted) setIsCameraReady(true);
           }
-        } catch (err) {
-          console.error('Error accessing camera:', err);
-          setHasCameraPermission(false);
-          setIsCameraReady(false);
-          toast({
-            variant: 'destructive',
-            title: 'Camera Access Denied',
-            description: 'Could not start camera. It might be in use or permissions are denied.',
-          });
         }
-      };
-      
-      startCamera();
-
-    } else {
-      stopCamera();
-    }
-    
-    // Cleanup function when the component unmounts
-    return () => {
-      stopCamera();
+      } catch (err: any) {
+        if (!isMounted) return;
+        console.error('Error accessing camera:', err);
+        setHasCameraPermission(false);
+        setIsCameraReady(false);
+        let description = 'Could not start camera. It might be in use by another app or permissions are denied.';
+        if (err.name === 'NotAllowedError') {
+            description = 'Camera access was denied. Please enable camera permissions in your browser settings.';
+        } else if (err.name === 'NotFoundError') {
+            description = 'No camera was found on this device for the selected mode (front/back).';
+        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+            description = 'The camera is already in use by another application or a hardware error occurred.';
+        } else if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+             description = 'Starting the camera timed out. Please check camera connections and try again.';
+        }
+        
+        toast({
+          variant: 'destructive',
+          title: `Camera Error: ${err.name}`,
+          description,
+        });
+      }
     };
+    
+    startCamera();
 
-  }, [isCameraTabActive, facingMode, stopCamera, toast]);
+    // Cleanup function: runs when the component unmounts or dependencies change.
+    // This is crucial for releasing the camera properly.
+    return () => {
+      isMounted = false;
+      setIsCameraReady(false);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+      streamRef.current = null;
+    };
+  }, [isCameraTabActive, facingMode, toast]);
 
 
   const handleTabChange = (value: string) => {
@@ -99,7 +119,7 @@ export function CropDiagnosis() {
   };
   
   const handleSwitchCamera = () => {
-    if (!isCameraReady) return;
+    if (!isCameraReady) return; // Prevent spamming the switch button
     setIsCameraReady(false); // Set to not ready while switching
     setFacingMode(prevMode => (prevMode === 'user' ? 'environment' : 'user'));
   };
@@ -137,6 +157,11 @@ export function CropDiagnosis() {
 
     const context = canvas.getContext('2d');
     if (context) {
+      // Flip the image if it's from the front camera (user facing) for a more natural preview
+      if (facingMode === 'user') {
+          context.translate(canvas.width, 0);
+          context.scale(-1, 1);
+      }
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       const dataUri = canvas.toDataURL('image/jpeg');
       setImagePreview(dataUri);
@@ -160,11 +185,15 @@ export function CropDiagnosis() {
     setResult(null);
     setError(null);
 
+    // Stop the camera so the user can focus on the results
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      if(videoRef.current) videoRef.current.srcObject = null;
+      streamRef.current = null;
+      setIsCameraReady(false);
+    }
+
     try {
-      // Stop the camera so the user can focus on the results
-      if (isCameraTabActive) {
-        stopCamera();
-      }
       const response = await diagnoseCropDisease({ photoDataUri: imagePreview, language });
       setResult(response);
     } catch (e) {
@@ -296,6 +325,7 @@ export function CropDiagnosis() {
                   <div>
                     <h3 className="font-semibold text-lg mb-2">About the Disease</h3>
                     <p className="text-muted-foreground bg-background/50 p-3 rounded-md border">{result.diseaseDescription}</p>
+
                   </div>
                 </div>
 
