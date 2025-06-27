@@ -14,11 +14,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const DiagnoseCropDiseaseInputSchema = z.object({
-  photoDataUri: z
-    .string()
-    .describe(
-      "A photo of a diseased plant, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
-    ),
+  photoDataUri: z.string(),
   language: z.string().describe('The language for the output response, e.g., "English", "Hindi".'),
 });
 export type DiagnoseCropDiseaseInput = z.infer<typeof DiagnoseCropDiseaseInputSchema>;
