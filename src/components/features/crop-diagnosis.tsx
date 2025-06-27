@@ -136,17 +136,26 @@ export function CropDiagnosis() {
                 </div>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4">
-                 <div>
-                  <h3 className="font-semibold text-lg mb-2">Identified Plant:</h3>
-                  <p className="text-primary font-bold text-xl">{result.plantName}</p>
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Left Column: Diagnosis Info */}
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2">Identified Plant</h3>
+                    <p className="text-primary font-bold text-xl">{result.plantName}</p>
+                  </div>
+                   <div>
+                    <h3 className="font-semibold text-lg mb-2">Identified Disease</h3>
+                    <p className="text-primary font-bold text-xl">{result.diseaseName}</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2">About the Disease</h3>
+                    <p className="text-muted-foreground bg-background/50 p-3 rounded-md border">{result.diseaseDescription}</p>
+                  </div>
                 </div>
+
+                {/* Right Column: Remedies */}
                 <div>
-                  <h3 className="font-semibold text-lg mb-2">Identified Disease:</h3>
-                  <p className="text-primary font-bold text-xl">{result.diseaseName}</p>
-                </div>
-                <div>
-                  <h3 className="font-semibold text-lg mb-2">Recommended Remedies:</h3>
+                  <h3 className="font-semibold text-lg mb-2">Recommended Remedies</h3>
                   <ul className="list-disc pl-5 space-y-2">
                     {result.remedies.map((remedy, index) => (
                       <li key={index} className="flex items-start">
@@ -166,14 +175,22 @@ export function CropDiagnosis() {
 }
 
 const LoadingSkeleton = () => (
-  <div className="space-y-4">
-    <Skeleton className="h-10 w-1/4" />
-    <Skeleton className="h-8 w-3/4" />
-    <Skeleton className="h-10 w-1/4" />
-    <div className="space-y-2">
-      <Skeleton className="h-6 w-full" />
-      <Skeleton className="h-6 w-5/6" />
-      <Skeleton className="h-6 w-full" />
+  <div className="grid md:grid-cols-2 gap-6">
+    <div className="space-y-4">
+      <Skeleton className="h-8 w-1/3" />
+      <Skeleton className="h-6 w-2/3" />
+      <Skeleton className="h-8 w-1/3" />
+      <Skeleton className="h-6 w-2/3" />
+      <Skeleton className="h-8 w-1/3" />
+      <Skeleton className="h-20 w-full" />
+    </div>
+    <div className="space-y-4">
+      <Skeleton className="h-8 w-1/3" />
+      <div className="space-y-2">
+        <Skeleton className="h-6 w-full" />
+        <Skeleton className="h-6 w-5/6" />
+        <Skeleton className="h-6 w-full" />
+      </div>
     </div>
   </div>
 );

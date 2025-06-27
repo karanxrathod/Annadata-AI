@@ -26,6 +26,7 @@ export type DiagnoseCropDiseaseInput = z.infer<typeof DiagnoseCropDiseaseInputSc
 const DiagnoseCropDiseaseOutputSchema = z.object({
   plantName: z.string().describe('The common name of the plant identified in the image, in the specified language.'),
   diseaseName: z.string().describe('The identified disease name, in the specified language.'),
+  diseaseDescription: z.string().describe('A brief, simple description of what the disease is, in the specified language.'),
   remedies: z.array(z.string()).describe('A list of actionable remedies for the disease, in the specified language.'),
 });
 export type DiagnoseCropDiseaseOutput = z.infer<typeof DiagnoseCropDiseaseOutputSchema>;
@@ -43,8 +44,9 @@ const prompt = ai.definePrompt({
   Your tasks are:
   1. Identify the common name of the plant in the image.
   2. Diagnose the disease affecting the plant.
-  3. Provide a list of actionable remedies for the disease.
-  4. Respond entirely in the specified language: {{language}}. This includes the plant name, disease name, and all remedies.
+  3. Provide a brief, simple description of what the disease is.
+  4. Provide a list of actionable remedies for the disease.
+  5. Respond entirely in the specified language: {{language}}. This includes the plant name, disease name, disease description, and all remedies.
 
   Photo: {{media url=photoDataUri}}
   Language: {{language}}
